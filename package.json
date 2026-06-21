@@ -8,7 +8,9 @@
     "start": "tsx src/server.ts",
     "build": "tsc -p tsconfig.json",
     "serve": "node dist/server.js",
-    "seed": "tsx src/seed/seed.ts"
+    "seed": "tsx src/seed/seed.ts",
+    "gen:swagger": "tsx src/swagger.gen.ts",
+    "vercel-build": "npm run gen:swagger"
   },
   "keywords": [],
   "author": "",

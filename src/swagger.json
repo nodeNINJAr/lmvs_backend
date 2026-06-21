@@ -1,0 +1,373 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "LMVS API",
+    "version": "1.0.0",
+    "description": "Labor Migration Verification System"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:4000"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "paths": {
+    "/auth/login": {
+      "post": {
+        "summary": "Login and get a JWT",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "phone": {
+                    "type": "string"
+                  },
+                  "password": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Token + user"
+          },
+          "401": {
+            "description": "Invalid credentials"
+          }
+        }
+      }
+    },
+    "/documents/upload": {
+      "post": {
+        "summary": "Upload one or more documents (worker)",
+        "description": "Files are uploaded to Cloudinary; only the links are stored. Use parallel arrays so each file carries its own type/source info (index-matched to files).",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "files": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "binary"
+                    }
+                  },
+                  "docTypes": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "NID",
+                        "PASSPORT",
+                        "SKILL_CERTIFICATE",
+                        "TRAINING_CERTIFICATE",
+                        "EXPERIENCE_CERTIFICATE",
+                        "PHOTO"
+                      ]
+                    }
+                  },
+                  "sourceLinks": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "issuers": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "certificateNos": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Documents created"
+          },
+          "400": {
+            "description": "No files provided or invalid docType"
+          },
+          "401": {
+            "description": "Missing/invalid token"
+          },
+          "403": {
+            "description": "Not a worker"
+          }
+        }
+      }
+    },
+    "/documents/me": {
+      "get": {
+        "summary": "List my uploaded documents (worker)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Array of the worker's documents (newest first)"
+          },
+          "401": {
+            "description": "Missing/invalid token"
+          },
+          "403": {
+            "description": "Not a worker"
+          }
+        }
+      }
+    },
+    "/verification/run": {
+      "post": {
+        "tags": [
+          "Verification"
+        ],
+        "summary": "Run AI verification for a worker (worker self, or admin via userId)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "userId": {
+                    "type": "string",
+                    "description": "Admin only — worker to verify"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Verification result + trust score + QR if verified"
+          },
+          "400": {
+            "description": "No documents to verify"
+          }
+        }
+      }
+    },
+    "/verification/{id}": {
+      "get": {
+        "tags": [
+          "Verification"
+        ],
+        "summary": "Get a verification record by ID",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Verification record"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        }
+      }
+    },
+    "/verify/{token}": {
+      "get": {
+        "tags": [
+          "Verification"
+        ],
+        "summary": "Public QR verification (officer scans QR)",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Worker profile",
+            "documents with source": null,
+            "and verification result": null
+          },
+          "404": {
+            "description": "Credential not found"
+          },
+          "410": {
+            "description": "Credential revoked"
+          }
+        }
+      }
+    },
+    "/admin/workers": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "List all workers",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of workers"
+          }
+        }
+      }
+    },
+    "/admin/workers/{id}": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Get one worker (profile, documents, verifications)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Worker detail"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        }
+      }
+    },
+    "/admin/workers/{id}/decision": {
+      "post": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Approve or reject a worker",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "decision": {
+                    "type": "string",
+                    "enum": [
+                      "APPROVED",
+                      "REJECTED"
+                    ]
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Decision applied"
+          }
+        }
+      }
+    },
+    "/admin/stats": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "System statistics",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Counters"
+          }
+        }
+      }
+    }
+  },
+  "tags": []
+}
