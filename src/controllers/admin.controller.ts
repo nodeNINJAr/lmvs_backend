@@ -21,3 +21,8 @@ export async function systemStats(_req: Request, res: Response) {
   const stats = await adminService.systemStats();
   res.json(stats);
 }
+
+export async function getDocument(req: Request, res: Response) {
+  const data = await adminService.getDocument(String(req.params.id));
+  res.json(data);
+}

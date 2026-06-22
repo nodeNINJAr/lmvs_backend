@@ -98,6 +98,28 @@ router.post('/documents/upload', authenticate, authorize('WORKER'), upload.array
  */
 router.get('/documents/me', authenticate, authorize('WORKER'), asyncHandler(docs.listMyDocuments));
 
+/**
+ * @openapi
+ * /documents/{id}:
+ *   delete:
+ *     summary: Delete one of my documents (worker)
+ *     description: Removes the file from Cloudinary and deletes the document record. Only the owning worker can delete their own document.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - { in: path, name: id, required: true, schema: { type: string } }
+ *     responses:
+ *       200:
+ *         description: Document deleted
+ *       401:
+ *         description: Missing/invalid token
+ *       403:
+ *         description: Not a worker
+ *       404:
+ *         description: Document not found
+ */
+router.delete('/documents/:id', authenticate, authorize('WORKER'), asyncHandler(docs.deleteDocument));
+
 
 
 /**
@@ -217,3 +239,19 @@ router.post('/admin/workers/:id/decision', authenticate, authorize('ADMIN'), asy
  *       200: { description: Counters }
  */
 router.get('/admin/stats', authenticate, authorize('ADMIN'), asyncHandler(admin.systemStats));
+
+/**
+ * @openapi
+ * /admin/documents/{id}:
+ *   get:
+ *     tags: [Admin]
+ *     summary: View one document with its source check
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - { in: path, name: id, required: true, schema: { type: string } }
+ *     responses:
+ *       200: { description: Document detail }
+ *       404: { description: Not found }
+ */
+router.get('/admin/documents/:id', authenticate, authorize('ADMIN'), asyncHandler(admin.getDocument));
+

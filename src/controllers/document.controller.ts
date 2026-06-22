@@ -2,7 +2,7 @@ import { Response } from 'express';
 import crypto from 'crypto';
 import { AuthRequest } from '../middleware/auth';
 import { UserModel, DocumentModel } from '../models';
-import { uploadBufferToCloudinary } from '../services/storage.service';
+import { uploadBufferToCloudinary, deleteFromCloudinary } from '../services/storage.service';
 
 const VALID = ['NID', 'PASSPORT', 'SKILL_CERTIFICATE', 'TRAINING_CERTIFICATE', 'EXPERIENCE_CERTIFICATE', 'PHOTO'];
 
@@ -53,4 +53,15 @@ export async function uploadDocuments(req: AuthRequest, res: Response) {
 export async function listMyDocuments(req: AuthRequest, res: Response) {
   const documents = await DocumentModel.find({ userId: req.user!.id }).sort({ uploadedAt: -1 });
   return res.json({ documents });
+}
+
+// DELETE /documents/:id
+export async function deleteDocument(req: AuthRequest, res: Response) {
+  const doc = await DocumentModel.findOne({ _id: req.params.id, userId: req.user!.id });
+  if (!doc) return res.status(404).json({ error: 'Document not found' });
+
+  await deleteFromCloudinary(doc.publicId);
+  await doc.deleteOne();
+
+  return res.json({ message: 'Document deleted' });
 }

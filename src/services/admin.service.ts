@@ -3,6 +3,7 @@ import {
   DocumentModel,
   VerificationResultModel,
   QRCodeRecordModel,
+  ExternalSourceModel,
 } from '../models';
 import { issueQrForUser } from './qr.service';
 
@@ -86,4 +87,19 @@ export async function systemStats() {
     QRCodeRecordModel.countDocuments({ status: 'ACTIVE' }),
   ]);
   return { totalWorkers: total, verified, rejected, underReview, qrIssued };
+}
+
+
+/** Get one document with its latest external-source check (for admin review). */
+export async function getDocument(id: string) {
+  const document = await DocumentModel.findById(id).lean();
+  if (!document) throw Object.assign(new Error('Document not found'), { status: 404 });
+
+  // most recent external lookup logged for this worker (audit trail)
+  const externalSource = await ExternalSourceModel.find({ userId: document.userId })
+    .sort({ fetchedAt: -1 })
+    .limit(1)
+    .lean();
+
+  return { document, externalSource: externalSource[0] || null };
 }
