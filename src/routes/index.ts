@@ -144,6 +144,18 @@ router.delete('/documents/:id', authenticate, authorize('WORKER'), asyncHandler(
 
 /**
  * @openapi
+ * /verification/me:
+ *   get:
+ *     tags: [Verification]
+ *     summary: Get my latest verification result + active QR (worker self)
+ *     security: [{ bearerAuth: [] }]
+ *     responses:
+ *       200: { description: Latest verification record and active QR (either may be null) }
+ */
+router.get('/verification/me', authenticate, authorize('WORKER'), asyncHandler(verify.getMyVerification));
+
+/**
+ * @openapi
  * /verification/{id}:
  *   get:
  *     tags: [Verification]
