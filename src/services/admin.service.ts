@@ -80,7 +80,9 @@ export async function decideWorker(
 
   // Record the manual decision as a verification entry too, so the worker (and anyone
   // scanning the QR) sees it was confirmed by an admin, alongside whatever the AI found.
-  const lastAi = await VerificationResultModel.findOne({ userId: id }).sort({ createdAt: -1 });
+  // Always look up the original AI run (never a prior admin override), so re-deciding
+  // doesn't keep nesting "AI findings: Verified manually by admin | ..." on top of itself.
+  const lastAi = await VerificationResultModel.findOne({ userId: id, analyzer: { $ne: 'admin' } }).sort({ createdAt: -1 });
   const notes = [
     `Verified manually by admin${reason ? `: ${reason}` : ''}`,
     lastAi?.notes ? `AI findings: ${lastAi.notes}` : null,
