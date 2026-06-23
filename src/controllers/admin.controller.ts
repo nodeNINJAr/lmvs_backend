@@ -22,6 +22,12 @@ export async function systemStats(_req: Request, res: Response) {
   res.json(stats);
 }
 
+// GET /public/stats — PUBLIC, for the marketing landing page (no sensitive counts)
+export async function publicStats(_req: Request, res: Response) {
+  const { totalWorkers, verified, qrIssued } = await adminService.systemStats();
+  res.json({ totalWorkers, verified, qrIssued });
+}
+
 export async function getDocument(req: Request, res: Response) {
   const data = await adminService.getDocument(String(req.params.id));
   res.json(data);

@@ -189,6 +189,18 @@ router.get('/verification/:id', authenticate, asyncHandler(verify.getVerificatio
  *       410: { description: Credential revoked }
  */
 router.get('/verify/:token', asyncHandler(qr.verifyByToken)); // PUBLIC
+
+/**
+ * @openapi
+ * /public/stats:
+ *   get:
+ *     tags: [Admin]
+ *     summary: Public counters for the landing page (no auth)
+ *     responses:
+ *       200: { description: Worker/verification/QR counters }
+ */
+router.get('/public/stats', asyncHandler(admin.publicStats)); // PUBLIC
+
 // ── Admin ──
 /**
  * @openapi
