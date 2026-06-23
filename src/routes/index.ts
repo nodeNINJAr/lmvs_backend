@@ -7,6 +7,7 @@ import * as docs from '../controllers/document.controller';
 import * as qr from '../controllers/qr.controller';
 import * as admin from '../controllers/admin.controller';
 import * as verify from '../controllers/verification.controller';
+import * as chat from '../controllers/chat.controller';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 export const router = Router();
@@ -278,4 +279,32 @@ router.get('/admin/stats', authenticate, authorize('ADMIN'), asyncHandler(admin.
  *       404: { description: Not found }
  */
 router.get('/admin/documents/:id', authenticate, authorize('ADMIN'), asyncHandler(admin.getDocument));
+
+/**
+ * @openapi
+ * /admin/chat:
+ *   post:
+ *     tags: [Admin]
+ *     summary: Ask the AI assistant about workers/stats
+ *     security: [{ bearerAuth: [] }]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               message: { type: string }
+ *               history:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     role: { type: string, enum: [user, assistant] }
+ *                     content: { type: string }
+ *     responses:
+ *       200: { description: AI reply grounded in current worker/stats data }
+ *       400: { description: message is required }
+ */
+router.post('/admin/chat', authenticate, authorize('ADMIN'), asyncHandler(chat.chat));
 
