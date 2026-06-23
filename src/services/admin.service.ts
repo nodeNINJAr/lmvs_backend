@@ -11,6 +11,20 @@ function notFound(msg: string) {
   return Object.assign(new Error(msg), { status: 404 });
 }
 
+/** Split a "|"-joined notes string into trimmed, deduplicated phrases. */
+function dedupePhrases(notes?: string | null): string[] {
+  if (!notes) return [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of notes.split('|')) {
+    const phrase = raw.trim();
+    if (!phrase || seen.has(phrase)) continue;
+    seen.add(phrase);
+    out.push(phrase);
+  }
+  return out;
+}
+
 /** List all workers with their latest status + trust score. */
 export async function listWorkers() {
   const workers = await UserModel.find({ role: 'WORKER' })
@@ -76,16 +90,21 @@ export async function decideWorker(
       { userId: id, status: 'ACTIVE' },
       { $set: { status: 'REVOKED' } }
     );
+    // A rejection undoes any prior manual sign-off — documents go back to pending.
+    await DocumentModel.updateMany({ userId: id }, { $set: { sourceVerified: false } });
   }
 
   // Record the manual decision as a verification entry too, so the worker (and anyone
   // scanning the QR) sees it was confirmed by an admin, alongside whatever the AI found.
   // Always look up the original AI run (never a prior admin override), so re-deciding
   // doesn't keep nesting "AI findings: Verified manually by admin | ..." on top of itself.
+  // Phrases are also deduped defensively in case the underlying AI notes already repeat
+  // (e.g. the same reason logged for more than one document).
   const lastAi = await VerificationResultModel.findOne({ userId: id, analyzer: { $ne: 'admin' } }).sort({ createdAt: -1 });
+  const aiPhrases = dedupePhrases(lastAi?.notes);
   const notes = [
     `Verified manually by admin${reason ? `: ${reason}` : ''}`,
-    lastAi?.notes ? `AI findings: ${lastAi.notes}` : null,
+    aiPhrases.length ? `AI findings: ${aiPhrases.join(' | ')}` : null,
   ].filter(Boolean).join(' | ');
 
   await VerificationResultModel.create({

@@ -125,7 +125,9 @@ export async function verifyWorker(userId: string) {
     trustScore,
     status: finalStatus,
     analyzer: 'openai',
-    notes: results.flatMap((r) => r.decision.reasons).join(' | '),
+    // Dedupe identical reasons surfaced by more than one document (e.g. NID and passport
+    // both flagging "Name does not match the submitted value.") so notes don't repeat.
+    notes: [...new Set(results.flatMap((r) => r.decision.reasons).map((s) => s.trim()).filter(Boolean))].join(' | '),
   });
 
   // update profile + auto-issue QR
