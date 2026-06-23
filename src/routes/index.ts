@@ -121,7 +121,34 @@ router.get('/documents/me', authenticate, authorize('WORKER'), asyncHandler(docs
  */
 router.delete('/documents/:id', authenticate, authorize('WORKER'), asyncHandler(docs.deleteDocument));
 
-
+/**
+ * @openapi
+ * /chat/me:
+ *   post:
+ *     summary: Ask the support AI assistant (worker self) about the platform or my own documents
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               message: { type: string }
+ *               history:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     role: { type: string, enum: [user, assistant] }
+ *                     content: { type: string }
+ *     responses:
+ *       200: { description: AI reply grounded only in this worker's own data }
+ *       400: { description: message is required }
+ *       403: { description: Not a worker }
+ */
+router.post('/chat/me', authenticate, authorize('WORKER'), asyncHandler(chat.workerChatHandler));
 
 /**
  * @openapi
