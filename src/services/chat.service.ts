@@ -1,12 +1,33 @@
 import OpenAI from 'openai';
 import { UserModel, QRCodeRecordModel, DocumentModel, VerificationResultModel } from '../models';
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, timeout: 30_000, maxRetries: 2 });
 const MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
 
 export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
+}
+
+/** Wraps a chat completion call so transient OpenAI failures surface as a clean, friendly error
+ * instead of a raw SDK exception (the client itself already retries 429/5xx/timeouts). */
+async function chatCompletion(systemPrompt: string, history: ChatMessage[], message: string, temperature = 0.2) {
+  try {
+    const resp = await openai.chat.completions.create({
+      model: MODEL,
+      temperature,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        ...history.slice(-10).map((h) => ({ role: h.role, content: h.content }) as const),
+        { role: 'user', content: message },
+      ],
+    });
+    return resp.choices[0]?.message?.content?.trim() || "Sorry, I couldn't generate a response.";
+  } catch (e: any) {
+    const status = e?.status === 429 ? 429 : 502;
+    const reason = e?.status === 429 ? 'The AI assistant is busy right now' : 'The AI assistant is temporarily unavailable';
+    throw Object.assign(new Error(`${reason} — please try again in a moment.`), { status });
+  }
 }
 
 /** Snapshot of worker data + stats the admin chat assistant is allowed to see. */
@@ -62,17 +83,7 @@ STATS: ${JSON.stringify(stats)}
 
 WORKERS: ${JSON.stringify(workerSummaries)}`;
 
-  const resp = await openai.chat.completions.create({
-    model: MODEL,
-    temperature: 0.2,
-    messages: [
-      { role: 'system', content: systemPrompt },
-      ...history.slice(-10).map((h) => ({ role: h.role, content: h.content }) as const),
-      { role: 'user', content: message },
-    ],
-  });
-
-  return resp.choices[0]?.message?.content?.trim() || "Sorry, I couldn't generate a response.";
+  return chatCompletion(systemPrompt, history, message);
 }
 
 const DOC_GUIDE = `Accepted document types: NID, PASSPORT, SKILL_CERTIFICATE, TRAINING_CERTIFICATE,
@@ -142,15 +153,5 @@ When asked "what's wrong with my documents" or similar, explain the latestVerifi
 plain, encouraging language and give concrete next steps. If latestVerification is null, tell them no
 verification has been run yet and point them to the "Run AI verification" button. Keep answers concise.`;
 
-  const resp = await openai.chat.completions.create({
-    model: MODEL,
-    temperature: 0.3,
-    messages: [
-      { role: 'system', content: systemPrompt },
-      ...history.slice(-10).map((h) => ({ role: h.role, content: h.content }) as const),
-      { role: 'user', content: message },
-    ],
-  });
-
-  return resp.choices[0]?.message?.content?.trim() || "Sorry, I couldn't generate a response.";
+  return chatCompletion(systemPrompt, history, message, 0.3);
 }

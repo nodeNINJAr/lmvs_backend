@@ -20,7 +20,6 @@ function httpError(status: number, message: string) {
 interface RegisterInput {
   phone: string;
   password: string;
-  role?: string;
   fullName?: string;
   dateOfBirth?: string;
   nidNumber?: string;
@@ -45,6 +44,12 @@ export async function registerUser(input: RegisterInput, files: UploadFile[] = [
   if (!input.phone || !input.password) {
     throw httpError(400, 'phone and password are required');
   }
+  if (typeof input.password !== 'string' || input.password.length < 6) {
+    throw httpError(400, 'password must be at least 6 characters');
+  }
+  if (typeof input.phone !== 'string' || !/^\d{8,15}$/.test(input.phone)) {
+    throw httpError(400, 'phone must be 8-15 digits');
+  }
   if (await UserModel.findOne({ phone: input.phone })) {
     throw httpError(409, 'Phone already registered');
   }
@@ -55,9 +60,11 @@ export async function registerUser(input: RegisterInput, files: UploadFile[] = [
     throw httpError(409, 'Passport already registered');
   }
 
-  const role = input.role === 'ADMIN' ? 'ADMIN' : 'WORKER';
+  // Public registration can only ever create a WORKER — admin accounts are provisioned
+  // out-of-band (seed script), never through this unauthenticated endpoint. Previously
+  // any caller could pass role: "ADMIN" in the request body and self-elevate.
   const user = await UserModel.create({
-    role,
+    role: 'WORKER',
     phone: input.phone,
     email: input.email,
     passwordHash: bcrypt.hashSync(input.password, 10),
@@ -69,7 +76,7 @@ export async function registerUser(input: RegisterInput, files: UploadFile[] = [
     emergencyContact: input.emergencyContact,
     occupation: input.occupation,
     countryOfEmployment: input.countryOfEmployment,
-    profileStatus: role === 'WORKER' ? 'SUBMITTED' : undefined,
+    profileStatus: 'SUBMITTED',
   });
 
   const documents = [];
@@ -95,6 +102,9 @@ export async function registerUser(input: RegisterInput, files: UploadFile[] = [
 }
 
 export async function loginUser(phone: string, password: string) {
+  if (!phone || !password) {
+    throw httpError(400, 'phone and password are required');
+  }
   const user = await UserModel.findOne({ phone });
   if (!user || !bcrypt.compareSync(password, user.passwordHash)) {
     throw httpError(401, 'Invalid credentials');

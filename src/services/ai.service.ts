@@ -1,7 +1,9 @@
 import OpenAI from 'openai';
 import { DocType } from '../types';
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+// timeout/maxRetries: the SDK retries 408/409/429/5xx with backoff automatically — important
+// since a flaky OpenAI response or transient rate limit shouldn't fail a whole verification run.
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, timeout: 60_000, maxRetries: 2 });
 const MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
 
 /* ──────────────────────────── Types ──────────────────────────── */
@@ -88,7 +90,16 @@ Use "" for any text field not clearly present. Output JSON only, no commentary.`
 
 
 async function toDataUrl(imageUrl: string): Promise<string> {
-  const res = await fetch(imageUrl);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15_000);
+  let res: Response;
+  try {
+    res = await fetch(imageUrl, { signal: controller.signal });
+  } catch (e: any) {
+    throw Object.assign(new Error(e?.name === 'AbortError' ? 'Timed out fetching document image' : `Cannot fetch image: ${e?.message}`), { status: 502 });
+  } finally {
+    clearTimeout(timeout);
+  }
   if (!res.ok) throw Object.assign(new Error(`Cannot fetch image (${res.status})`), { status: 502 });
   const ct = res.headers.get('content-type') || 'image/jpeg';
   const buf = Buffer.from(await res.arrayBuffer());

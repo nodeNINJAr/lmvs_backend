@@ -2,6 +2,7 @@ import { Router } from 'express';
 import multer from 'multer';
 import { authenticate, authorize } from '../middleware/auth';
 import { asyncHandler } from '../middleware/error';
+import { authLimiter, aiLimiter } from '../middleware/rateLimit';
 import * as auth from '../controllers/auth.controller';
 import * as docs from '../controllers/document.controller';
 import * as qr from '../controllers/qr.controller';
@@ -9,11 +10,22 @@ import * as admin from '../controllers/admin.controller';
 import * as verify from '../controllers/verification.controller';
 import * as chat from '../controllers/chat.controller';
 
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+// Server-side enforcement of image-only uploads — the frontend already restricts to images,
+// but a direct API call could otherwise upload anything (e.g. an executable) up to 10MB.
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (!file.mimetype.startsWith('image/')) {
+      return cb(new Error('Only image files are allowed'));
+    }
+    cb(null, true);
+  },
+});
 export const router = Router();
 
 // ── Auth ──  (registration accepts multiple documents/images -> Cloudinary)
-router.post('/auth/register', upload.array('files', 10), asyncHandler(auth.register));
+router.post('/auth/register', authLimiter, upload.array('files', 10), asyncHandler(auth.register));
 /**
  * @openapi
  * /auth/login:
@@ -32,7 +44,7 @@ router.post('/auth/register', upload.array('files', 10), asyncHandler(auth.regis
  *       200: { description: Token + user }
  *       401: { description: Invalid credentials }
  */
-router.post('/auth/login', asyncHandler(auth.login));
+router.post('/auth/login', authLimiter, asyncHandler(auth.login));
 router.get('/auth/me', authenticate, asyncHandler(auth.me));
 
 // ── Documents ──
@@ -148,7 +160,7 @@ router.delete('/documents/:id', authenticate, authorize('WORKER'), asyncHandler(
  *       400: { description: message is required }
  *       403: { description: Not a worker }
  */
-router.post('/chat/me', authenticate, authorize('WORKER'), asyncHandler(chat.workerChatHandler));
+router.post('/chat/me', aiLimiter, authenticate, authorize('WORKER'), asyncHandler(chat.workerChatHandler));
 
 /**
  * @openapi
@@ -168,7 +180,7 @@ router.post('/chat/me', authenticate, authorize('WORKER'), asyncHandler(chat.wor
  *       201: { description: Verification result + trust score + QR if verified }
  *       400: { description: No documents to verify }
  */
- router.post('/verification/run', authenticate, authorize('WORKER', 'ADMIN'), asyncHandler(verify.runVerification));
+ router.post('/verification/run', aiLimiter, authenticate, authorize('WORKER', 'ADMIN'), asyncHandler(verify.runVerification));
 
 /**
  * @openapi
@@ -333,5 +345,5 @@ router.get('/admin/documents/:id', authenticate, authorize('ADMIN'), asyncHandle
  *       200: { description: AI reply grounded in current worker/stats data }
  *       400: { description: message is required }
  */
-router.post('/admin/chat', authenticate, authorize('ADMIN'), asyncHandler(chat.chat));
+router.post('/admin/chat', aiLimiter, authenticate, authorize('ADMIN'), asyncHandler(chat.chat));
 
