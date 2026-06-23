@@ -44,7 +44,9 @@ export async function getWorker(id: string) {
     .sort({ createdAt: -1 })
     .lean();
 
-  return { worker, documents, verifications };
+  const qr = await QRCodeRecordModel.findOne({ userId: id, status: 'ACTIVE' }).lean();
+
+  return { worker, documents, verifications, qr };
 }
 
 /** Approve or reject a worker. Approve auto-issues a QR; reject revokes it. */
