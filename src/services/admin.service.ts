@@ -69,6 +69,8 @@ export async function decideWorker(
   let qr = null;
   if (status === 'VERIFIED') {
     qr = await issueQrForUser(id);
+    // Admin sign-off covers the documents too, even ones the AI couldn't externally confirm.
+    await DocumentModel.updateMany({ userId: id }, { $set: { sourceVerified: true } });
   } else {
     await QRCodeRecordModel.updateMany(
       { userId: id, status: 'ACTIVE' },
