@@ -66,13 +66,30 @@ export async function decideWorker(
 
   let qr = null;
   if (status === 'VERIFIED') {
-    qr = await issueQrForUser(id);                     
+    qr = await issueQrForUser(id);
   } else {
-    await QRCodeRecordModel.updateMany(              
+    await QRCodeRecordModel.updateMany(
       { userId: id, status: 'ACTIVE' },
       { $set: { status: 'REVOKED' } }
     );
   }
+
+  // Record the manual decision as a verification entry too, so the worker (and anyone
+  // scanning the QR) sees it was confirmed by an admin, alongside whatever the AI found.
+  const lastAi = await VerificationResultModel.findOne({ userId: id }).sort({ createdAt: -1 });
+  const notes = [
+    `Verified manually by admin${reason ? `: ${reason}` : ''}`,
+    lastAi?.notes ? `AI findings: ${lastAi.notes}` : null,
+  ].filter(Boolean).join(' | ');
+
+  await VerificationResultModel.create({
+    userId: id,
+    status,
+    analyzer: 'admin',
+    trustScore: worker.trustScore ?? lastAi?.trustScore ?? null,
+    confidenceScore: lastAi?.confidenceScore ?? null,
+    notes,
+  });
 
   return { userId: id, status, reason: reason || null, qr };
 }
